@@ -28,3 +28,6 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+## IdeaTest implementation
+- Keep IdeaTest run orchestration in authenticated TanStack Start server functions, secret-backed model calls in server-only helpers, and calculators in pure TypeScript modules so permissions and financial outputs stay verifiable.
