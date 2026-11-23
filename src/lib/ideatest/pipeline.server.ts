@@ -338,7 +338,7 @@ async function markRunFailed(supabase: SupabaseClient, run: RunRow, message: str
   await supabase.rpc("fail_run_and_refund", { _run_id: run.id, _message: message.slice(0, 500) });
 }
 
-async function insertBoardResults(apiKey: string, userSupabase: SupabaseClient, run: RunRow, idea: IdeaRow) {
+async function insertBoardResults(apiKey: string, run: RunRow, idea: IdeaRow) {
   const results = await createBoardResults(apiKey, idea);
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { error } = await supabaseAdmin.from("board_results").upsert(
@@ -419,7 +419,7 @@ async function processPanelBatch(apiKey: string, userSupabase: SupabaseClient, r
   return { ...run, stage: "panel", stage_progress: stageProgress, buyers_completed: buyersCompleted };
 }
 
-async function finishPanelStage(userSupabase: SupabaseClient, run: RunRow, idea: IdeaRow) {
+async function finishPanelStage(userSupabase: SupabaseClient, run: RunRow) {
   const { data: answers, error } = await userSupabase.from("panel_answers").select("*").eq("run_id", run.id).order("persona_index");
   if (error) throw new Error("Completed buyer answers could not be loaded.");
   const completed = (answers ?? []).filter((answer) => answer.status === "completed" && answer.would_buy !== null);
@@ -533,16 +533,21 @@ export async function advanceRun(
       const panelRows = answers ?? [];
       const pendingCount = panelRows.filter((answer) => answer.status === "pending").length;
       const processingCount = panelRows.filter((answer) => answer.status === "processing").length;
-      if (pendingCount > 0) {
+      if (pendingCount > 0 || processingCount > 0) {
         const next = await processPanelBatch(apiKey, userSupabase, run, idea);
         if (next) return runState(next);
+        if (processingCount > 0) return runState(run);
       }
-      if (processingCount > 0 && pendingCount === 0) return runState(run);
       if (panelRows.length < run.buyer_target) {
         const next = await generatePersonaBatch(apiKey, run, idea, panelRows);
         return runState(next);
       }
-      const next = await finishPanelStage(userSupabase, run, idea);
+      await updateRun(userSupabase, run.id, { stage: "pricing", stage_progress: 76 });
+      return runState({ ...run, stage: "pricing", stage_progress: 76 });
+    }
+
+    if (run.stage === "pricing") {
+      const next = await finishPanelStage(userSupabase, run);
       return runState(next);
     }
 
