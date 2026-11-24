@@ -122,49 +122,58 @@ export function validateFinanceInputs(model: BusinessModel, inputs: NumericInput
   return null;
 }
 
+function requireInput(inputs: NumericInputs, key: string): number {
+  const value = inputs[key];
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`Missing required input: ${key}`);
+  }
+  return value;
+}
+
 function monthlyValues(model: BusinessModel, inputs: NumericInputs, month: number) {
+  const v = (key: string) => requireInput(inputs, key);
   let revenue = 0;
   let variableCost = 0;
   let acquisitionCost = 0;
-  const fixedCost = inputs.fixed_monthly_cost ?? 0;
+  const fixedCost = v("fixed_monthly_cost");
 
   if (model === "physical_product") {
-    const units = inputs.units_per_day * 30;
-    revenue = units * inputs.price;
-    variableCost = units * inputs.unit_cost;
+    const units = v("units_per_day") * 30;
+    revenue = units * v("price");
+    variableCost = units * v("unit_cost");
   } else if (model === "b2b_saas") {
-    const churn = inputs.monthly_churn_percent / 100;
-    let customers = inputs.starting_customers;
+    const churn = v("monthly_churn_percent") / 100;
+    let customers = v("starting_customers");
     for (let currentMonth = 1; currentMonth <= month; currentMonth += 1) {
-      customers = customers * (1 - churn) + inputs.new_customers_per_month;
+      customers = customers * (1 - churn) + v("new_customers_per_month");
     }
-    const seats = customers * inputs.seats_per_customer;
-    revenue = seats * inputs.price_per_seat;
-    variableCost = seats * inputs.hosting_cost_per_seat;
-    acquisitionCost = inputs.new_customers_per_month * inputs.customer_acquisition_cost;
+    const seats = customers * v("seats_per_customer");
+    revenue = seats * v("price_per_seat");
+    variableCost = seats * v("hosting_cost_per_seat");
+    acquisitionCost = v("new_customers_per_month") * v("customer_acquisition_cost");
   } else if (model === "consumer_app") {
-    const churn = inputs.monthly_churn_percent / 100;
-    let users = inputs.active_users;
+    const churn = v("monthly_churn_percent") / 100;
+    let users = v("active_users");
     for (let currentMonth = 1; currentMonth <= month; currentMonth += 1) {
-      users = users * (1 - churn) + inputs.new_users_per_month;
+      users = users * (1 - churn) + v("new_users_per_month");
     }
-    revenue = users * inputs.monthly_subscription_price;
-    variableCost = users * inputs.cost_per_user;
-    acquisitionCost = inputs.new_users_per_month * inputs.customer_acquisition_cost;
+    revenue = users * v("monthly_subscription_price");
+    variableCost = users * v("cost_per_user");
+    acquisitionCost = v("new_users_per_month") * v("customer_acquisition_cost");
   } else if (model === "service_agency") {
-    const hours = inputs.available_hours_per_month * (inputs.utilization_percent / 100);
-    revenue = hours * inputs.hourly_rate;
-    variableCost = hours * inputs.delivery_cost_per_hour;
-    acquisitionCost = inputs.marketing_cost_per_month;
+    const hours = v("available_hours_per_month") * (v("utilization_percent") / 100);
+    revenue = hours * v("hourly_rate");
+    variableCost = hours * v("delivery_cost_per_hour");
+    acquisitionCost = v("marketing_cost_per_month");
   } else if (model === "marketplace") {
-    const gmv = inputs.monthly_gmv * (1 + inputs.gmv_growth_percent / 100) ** (month - 1);
-    revenue = gmv * (inputs.take_rate_percent / 100);
-    variableCost = gmv * (inputs.transaction_cost_percent / 100);
-    acquisitionCost = inputs.acquisition_spend_per_month;
+    const gmv = v("monthly_gmv") * (1 + v("gmv_growth_percent") / 100) ** (month - 1);
+    revenue = gmv * (v("take_rate_percent") / 100);
+    variableCost = gmv * (v("transaction_cost_percent") / 100);
+    acquisitionCost = v("acquisition_spend_per_month");
   } else {
-    const transactions = inputs.transactions_per_day * inputs.open_days_per_month;
-    revenue = transactions * inputs.average_ticket;
-    variableCost = transactions * inputs.variable_cost_per_sale;
+    const transactions = v("transactions_per_day") * v("open_days_per_month");
+    revenue = transactions * v("average_ticket");
+    variableCost = transactions * v("variable_cost_per_sale");
   }
 
   const contribution = revenue - variableCost;
@@ -175,6 +184,7 @@ function monthlyValues(model: BusinessModel, inputs: NumericInputs, month: numbe
 export function calculateEconomics(model: BusinessModel, inputs: NumericInputs): Economics {
   const validationError = validateFinanceInputs(model, inputs);
   if (validationError) throw new Error(validationError);
+  const v = (key: string) => requireInput(inputs, key);
 
   let cumulativeProfit = 0;
   let lowestCumulativeProfit = 0;
@@ -196,29 +206,29 @@ export function calculateEconomics(model: BusinessModel, inputs: NumericInputs):
   let breakEvenUnits: number | null = null;
   let breakEvenUnitLabel = "monthly units";
   if (model === "physical_product") {
-    const marginPerUnit = inputs.price - inputs.unit_cost;
-    breakEvenUnits = marginPerUnit > 0 ? Math.ceil(inputs.fixed_monthly_cost / marginPerUnit) : null;
+    const marginPerUnit = v("price") - v("unit_cost");
+    breakEvenUnits = marginPerUnit > 0 ? Math.ceil(v("fixed_monthly_cost") / marginPerUnit) : null;
   } else if (model === "b2b_saas") {
-    const marginPerCustomer = inputs.seats_per_customer * (inputs.price_per_seat - inputs.hosting_cost_per_seat);
-    const ongoingCost = inputs.fixed_monthly_cost + inputs.new_customers_per_month * inputs.customer_acquisition_cost;
+    const marginPerCustomer = v("seats_per_customer") * (v("price_per_seat") - v("hosting_cost_per_seat"));
+    const ongoingCost = v("fixed_monthly_cost") + v("new_customers_per_month") * v("customer_acquisition_cost");
     breakEvenUnits = marginPerCustomer > 0 ? Math.ceil(ongoingCost / marginPerCustomer) : null;
     breakEvenUnitLabel = "active customers";
   } else if (model === "consumer_app") {
-    const marginPerUser = inputs.monthly_subscription_price - inputs.cost_per_user;
-    const ongoingCost = inputs.fixed_monthly_cost + inputs.new_users_per_month * inputs.customer_acquisition_cost;
+    const marginPerUser = v("monthly_subscription_price") - v("cost_per_user");
+    const ongoingCost = v("fixed_monthly_cost") + v("new_users_per_month") * v("customer_acquisition_cost");
     breakEvenUnits = marginPerUser > 0 ? Math.ceil(ongoingCost / marginPerUser) : null;
     breakEvenUnitLabel = "active users";
   } else if (model === "service_agency") {
-    const marginPerHour = inputs.hourly_rate - inputs.delivery_cost_per_hour;
-    breakEvenUnits = marginPerHour > 0 ? Math.ceil((inputs.fixed_monthly_cost + inputs.marketing_cost_per_month) / marginPerHour) : null;
+    const marginPerHour = v("hourly_rate") - v("delivery_cost_per_hour");
+    breakEvenUnits = marginPerHour > 0 ? Math.ceil((v("fixed_monthly_cost") + v("marketing_cost_per_month")) / marginPerHour) : null;
     breakEvenUnitLabel = "billable hours";
   } else if (model === "marketplace") {
-    const marginRate = (inputs.take_rate_percent - inputs.transaction_cost_percent) / 100;
-    breakEvenUnits = marginRate > 0 ? (inputs.fixed_monthly_cost + inputs.acquisition_spend_per_month) / marginRate : null;
+    const marginRate = (v("take_rate_percent") - v("transaction_cost_percent")) / 100;
+    breakEvenUnits = marginRate > 0 ? (v("fixed_monthly_cost") + v("acquisition_spend_per_month")) / marginRate : null;
     breakEvenUnitLabel = "monthly transaction value";
   } else {
-    const marginPerSale = inputs.average_ticket - inputs.variable_cost_per_sale;
-    breakEvenUnits = marginPerSale > 0 ? Math.ceil(inputs.fixed_monthly_cost / marginPerSale) : null;
+    const marginPerSale = v("average_ticket") - v("variable_cost_per_sale");
+    breakEvenUnits = marginPerSale > 0 ? Math.ceil(v("fixed_monthly_cost") / marginPerSale) : null;
     breakEvenUnitLabel = "monthly transactions";
   }
 
