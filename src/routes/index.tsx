@@ -1,23 +1,265 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
+import { CircleCheck, FlaskConical, TriangleAlert } from "lucide-react";
+import { useEffect, useState } from "react";
 
-// The home route ships no og:image, so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
+import { BuyCreditsDialog } from "@/components/ideatest/buy-credits-dialog";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { CREDIT_PACKS } from "@/lib/ideatest/packs";
+
+const TITLE = "IdeaTest — Test your startup idea before you spend a rupee";
+const DESCRIPTION =
+  "Describe a startup idea in any niche. IdeaTest runs it through an AI board, a panel of simulated buyers, a price analysis and your own unit economics, then gives a computed verdict.";
+
 export const Route = createFileRoute("/")({
-  component: Index,
+  head: () => ({
+    meta: [
+      { title: TITLE },
+      { name: "description", content: DESCRIPTION },
+      { property: "og:title", content: TITLE },
+      { property: "og:description", content: DESCRIPTION },
+    ],
+  }),
+  component: Landing,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
+const steps = [
+  {
+    title: "Describe your idea",
+    text: "Write it in plain words, pick your country and currency. Any niche works: a product, software, a service, a marketplace or a local shop.",
+  },
+  {
+    title: "Add your own numbers",
+    text: "IdeaTest works out your business type and asks only the money questions that apply to it. Nothing is guessed, and a missing number stops the run.",
+  },
+  {
+    title: "Get a computed verdict",
+    text: "An AI board reviews the idea, 20 or 100 simulated buyers react to it, and the maths for price and profit is done in code, not by the AI.",
+  },
+] as const;
+
+const reportParts = [
+  "A verdict computed from your numbers, with each pass or fail shown",
+  "Board review from three lenses: offer, differentiation, product craft",
+  "Simulated buyer panel: who would buy, who wouldn't, and the objections in their own words",
+  "Price range from the buyers' answers (Van Westendorp)",
+  "Year-one unit economics, break-even and cash needed",
+  "Three things to test with real people next",
+] as const;
+
+function HeaderCta() {
+  const [signedIn, setSignedIn] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (active) setSignedIn(Boolean(data.session));
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+  return signedIn ? (
+    <Button asChild size="sm">
+      <Link to="/dashboard">Dashboard</Link>
+    </Button>
+  ) : (
+    <div className="flex items-center gap-1">
+      <Button asChild variant="ghost" size="sm">
+        <Link to="/auth">Sign in</Link>
+      </Button>
+      <Button asChild size="sm">
+        <Link to="/auth">Start free</Link>
+      </Button>
+    </div>
+  );
+}
+
+function Landing() {
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="border-b border-border">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
+          <Link to="/" className="inline-flex items-center gap-2 font-semibold">
+            <span className="grid size-9 place-items-center rounded-md bg-primary text-primary-foreground">
+              <FlaskConical className="size-5" aria-hidden="true" />
+            </span>
+            <span className="font-display text-xl">IdeaTest</span>
+          </Link>
+          <nav
+            className="hidden items-center gap-6 text-sm text-muted-foreground md:flex"
+            aria-label="Page sections"
+          >
+            <a href="#how" className="hover:text-foreground">
+              How it works
+            </a>
+            <a href="#report" className="hover:text-foreground">
+              The report
+            </a>
+            <a href="#pricing" className="hover:text-foreground">
+              Pricing
+            </a>
+          </nav>
+          <HeaderCta />
+        </div>
+      </header>
+
+      <main>
+        <section className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 md:py-20 lg:grid-cols-[1.25fr_1fr] lg:items-center lg:gap-16 lg:px-8">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+              Startup idea validator
+            </p>
+            <h1 className="mt-4 font-display text-4xl font-semibold leading-tight sm:text-5xl">
+              Test your startup idea before you spend a rupee
+            </h1>
+            <p className="mt-5 max-w-xl text-lg leading-8 text-muted-foreground">
+              An AI board, a panel of simulated buyers, a price range and your own unit economics,
+              combined into one verdict you can check. Built for founders in any niche.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center gap-3">
+              <Button asChild size="lg">
+                <Link to="/auth">Test my idea free</Link>
+              </Button>
+              <a
+                href="#how"
+                className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+              >
+                See how it works
+              </a>
+            </div>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Every new account includes one free Quick run.
+            </p>
+          </div>
+
+          <div className="border-y border-border py-6 lg:border-y-0 lg:border-l lg:py-2 lg:pl-10">
+            <p className="text-sm font-semibold">The verdict is computed, not written</p>
+            <ul className="mt-4 space-y-3 text-sm">
+              {[
+                "Contribution is positive",
+                "Year one is profitable",
+                "More than 20% of simulated buyers say yes",
+              ].map((item) => (
+                <li key={item} className="flex items-start gap-2">
+                  <CircleCheck className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-4 text-sm leading-6 text-muted-foreground">
+              Pass all three for “Promising”, none for “Not viable yet”, anything between for “Needs
+              work”. The AI writes the explanations; the code decides the verdict.
+            </p>
+          </div>
+        </section>
+
+        <section id="how" className="border-y border-border bg-secondary/60 py-14">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+            <h2 className="font-display text-3xl font-semibold">How it works</h2>
+            <ol className="mt-8 grid gap-8 md:grid-cols-3">
+              {steps.map((step, index) => (
+                <li key={step.title} className="border-t-2 border-primary pt-4">
+                  <span className="text-xs font-semibold uppercase text-primary">
+                    Step {index + 1}
+                  </span>
+                  <h3 className="mt-2 text-lg font-semibold">{step.title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{step.text}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section
+          id="report"
+          className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 lg:grid-cols-2 lg:px-8"
+        >
+          <div>
+            <h2 className="font-display text-3xl font-semibold">What is in the report</h2>
+            <p className="mt-3 leading-7 text-muted-foreground">
+              Every number is labelled as your input, an estimate or simulated, so you always know
+              what you are looking at.
+            </p>
+          </div>
+          <ul className="divide-y divide-border border-y border-border">
+            {reportParts.map((part) => (
+              <li key={part} className="flex items-start gap-3 py-3 text-sm leading-6">
+                <CircleCheck className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+                <span>{part}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="mx-auto max-w-6xl px-4 pb-14 sm:px-6 lg:px-8">
+          <aside
+            className="flex items-start gap-3 border-y border-border bg-secondary px-4 py-5 text-sm leading-6 sm:px-6"
+            role="note"
+          >
+            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+            <div>
+              <p className="font-semibold">Honest limits</p>
+              <p className="mt-1">
+                Buyers are simulated by AI, not real customers. AI buyers tend to be agreeable, so
+                treat the buy rate as an upper bound and confirm with real people before you spend.
+                Your numbers decide the economics, so they are only as good as what you enter. Not
+                financial or legal advice.
+              </p>
+            </div>
+          </aside>
+        </section>
+
+        <section id="pricing" className="border-t border-border bg-secondary/60 py-14">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+            <h2 className="font-display text-3xl font-semibold">Pricing</h2>
+            <p className="mt-3 max-w-2xl leading-7 text-muted-foreground">
+              Pay per run with credits. A Quick run (20 simulated buyers) costs 1 credit. A Full run
+              (100 simulated buyers) costs 5 credits. Your first Quick run is free.
+            </p>
+            <div className="mt-8 grid gap-6 md:grid-cols-3">
+              {CREDIT_PACKS.map((pack) => (
+                <div
+                  key={pack.name}
+                  className="flex flex-col border-t-2 border-primary bg-background p-5"
+                >
+                  <h3 className="font-display text-xl font-semibold">{pack.name}</h3>
+                  <p className="mt-1 text-3xl font-semibold">{pack.credits} credits</p>
+                  <p className="mt-2 flex-1 text-sm leading-6 text-muted-foreground">
+                    {pack.blurb}
+                  </p>
+                  <p className="mt-3 text-xs text-muted-foreground">Price announced at launch</p>
+                  <BuyCreditsDialog>
+                    <Button variant="outline" className="mt-3">
+                      Buy credits
+                    </Button>
+                  </BuyCreditsDialog>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-6xl px-4 py-14 text-center sm:px-6 lg:px-8">
+          <h2 className="font-display text-3xl font-semibold">
+            Find the weak spots while they are still cheap to fix
+          </h2>
+          <div className="mt-6">
+            <Button asChild size="lg">
+              <Link to="/auth">Test my idea free</Link>
+            </Button>
+          </div>
+        </section>
+      </main>
+
+      <footer className="border-t border-border px-4 py-6 text-center text-xs text-muted-foreground sm:px-6">
+        <p>
+          Buyer personas are AI simulations, not real customer research. Not financial or legal
+          advice.
+        </p>
+        <p className="mt-1">
+          Method inspired by the MIT-licensed founder-skill by Jake Schincariol.
+        </p>
+      </footer>
     </div>
   );
 }

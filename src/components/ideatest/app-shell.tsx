@@ -3,6 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowUpRight, Coins, FlaskConical, LogOut, Plus } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { BuyCreditsDialog } from "@/components/ideatest/buy-credits-dialog";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -36,7 +37,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border bg-background">
+      <header className="border-b border-border bg-background print:hidden">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
           <Link to="/dashboard" className="inline-flex items-center gap-2 font-semibold text-foreground">
             <span className="grid size-9 place-items-center rounded-md bg-primary text-primary-foreground">
@@ -57,10 +58,12 @@ export function AppShell({ children }: { children: ReactNode }) {
               </Button>
             ) : null}
             <span className="mx-1 hidden h-7 border-l border-border sm:block" aria-hidden="true" />
-            <span className="inline-flex items-center gap-1.5 px-2 text-sm text-muted-foreground" aria-label={`${account?.credits ?? 0} credits`}>
-              <Coins className="size-4 text-primary" aria-hidden="true" />
-              <span>{account?.credits ?? "—"} credits</span>
-            </span>
+            <BuyCreditsDialog>
+              <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" aria-label={`${account?.credits ?? 0} credits. Buy more`}>
+                <Coins className="size-4 text-primary" aria-hidden="true" />
+                <span>{account?.credits ?? "—"} credits</span>
+              </Button>
+            </BuyCreditsDialog>
             <Button variant="ghost" size="icon" aria-label={`Sign out ${account?.email ?? ""}`} title="Sign out" onClick={signOut}>
               <LogOut aria-hidden="true" />
             </Button>
@@ -68,7 +71,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
       <main>{children}</main>
-      <footer className="border-t border-border bg-background px-4 py-5 text-center text-xs text-muted-foreground sm:px-6">
+      <footer className="border-t border-border bg-background px-4 py-5 text-center text-xs text-muted-foreground sm:px-6 print:hidden">
         <p>Buyer personas are AI simulations, not real customer research.</p>
         <p className="mt-1">Method inspired by the MIT-licensed founder-skill by Jake Schincariol.</p>
         {account?.email ? <p className="mt-2 inline-flex items-center gap-1"><span>{account.email}</span><ArrowUpRight className="size-3" aria-hidden="true" /></p> : null}
