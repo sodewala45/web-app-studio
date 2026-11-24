@@ -68,11 +68,14 @@ const reportSchema = z.object({
 function statusOf(error: unknown): number | undefined {
   if (error === null || typeof error !== "object") return undefined;
   const record = error as Record<string, unknown>;
-  if (typeof record.statusCode === "number") return record.statusCode;
-  if (typeof record.status === "number") return record.status;
-  const response = record.response;
-  if (response !== null && typeof response === "object" && typeof (response as Record<string, unknown>).status === "number") {
-    return (response as Record<string, number>).status;
+  const statusCode = record["statusCode"];
+  if (typeof statusCode === "number") return statusCode;
+  const status = record["status"];
+  if (typeof status === "number") return status;
+  const response = record["response"];
+  if (response !== null && typeof response === "object") {
+    const nestedStatus = (response as Record<string, unknown>)["status"];
+    if (typeof nestedStatus === "number") return nestedStatus;
   }
   return undefined;
 }
@@ -80,7 +83,7 @@ function statusOf(error: unknown): number | undefined {
 function retryAfterMilliseconds(error: unknown): number | undefined {
   if (error === null || typeof error !== "object") return undefined;
   const record = error as Record<string, unknown>;
-  const headers = record.responseHeaders ?? record.headers;
+  const headers = record["responseHeaders"] ?? record["headers"];
   let value: string | null = null;
   if (headers instanceof Headers) value = headers.get("retry-after");
   else if (headers !== null && typeof headers === "object") {
@@ -102,14 +105,15 @@ function safeAiError(error: unknown): Error {
   const status = statusOf(error);
   let upstreamMessage: string | undefined;
   if (error !== null && typeof error === "object") {
-    const body = (error as Record<string, unknown>).responseBody;
+    const body = (error as Record<string, unknown>)["responseBody"];
     if (typeof body === "string") {
       try {
         const parsed = JSON.parse(body) as { message?: unknown; error?: unknown };
         if (typeof parsed.message === "string") upstreamMessage = parsed.message;
         else if (typeof parsed.error === "string") upstreamMessage = parsed.error;
-        else if (parsed.error !== null && typeof parsed.error === "object" && typeof (parsed.error as Record<string, unknown>).message === "string") {
-          upstreamMessage = (parsed.error as Record<string, string>).message;
+        else if (parsed.error !== null && typeof parsed.error === "object") {
+          const nestedMessage = (parsed.error as Record<string, unknown>)["message"];
+          if (typeof nestedMessage === "string") upstreamMessage = nestedMessage;
         }
       } catch {
         upstreamMessage = undefined;
@@ -256,9 +260,10 @@ async function createPersonas(apiKey: string, idea: IdeaRow, count: number, offs
 }
 
 function validatePanelResult(result: PanelResult) {
-  const values = [result.price_too_cheap, result.price_cheap, result.price_expensive, result.price_too_expensive];
+  const { price_too_cheap: tooCheap, price_cheap: cheap, price_expensive: expensive, price_too_expensive: tooExpensive } = result;
+  const values = [tooCheap, cheap, expensive, tooExpensive];
   if (values.some((value) => !Number.isFinite(value) || value <= 0)) throw new Error("The buyer returned invalid price answers.");
-  if (!(values[0] < values[1] && values[1] < values[2] && values[2] < values[3])) {
+  if (!(tooCheap < cheap && cheap < expensive && expensive < tooExpensive)) {
     throw new Error("The buyer returned inconsistent price answers.");
   }
   return {
@@ -520,7 +525,7 @@ export async function advanceRun(
       const { data: existing, error: boardError } = await userSupabase.from("board_results").select("id").eq("run_id", run.id);
       if (boardError) throw new Error("Board results could not be checked.");
       if ((existing?.length ?? 0) < 3) {
-        const next = await insertBoardResults(apiKey, userSupabase, run, idea);
+        const next = await insertBoardResults(apiKey, run, idea);
         return runState(next);
       }
       await updateRun(userSupabase, run.id, { stage: "panel", stage_progress: 20 });
