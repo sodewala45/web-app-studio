@@ -126,7 +126,14 @@ function safeAiError(error: unknown): Error {
   if (status === 429) return new Error("AI analysis is busy. Please try again shortly.");
   if (status !== undefined && status >= 500) return new Error("AI analysis is temporarily unavailable. Please try again shortly.");
   if (status === 400) return new Error(upstreamMessage || "The AI service could not process this request.");
-  return new Error("The analysis could not be completed. Please try again.");
+  console.error("[ideatest] AI call failed", {
+    status,
+    name: error instanceof Error ? error.name : typeof error,
+    message: error instanceof Error ? error.message : undefined,
+    upstreamMessage,
+  });
+  const detail = status !== undefined ? ` (error ${status})` : error instanceof Error ? ` (${error.name})` : "";
+  return new Error(`The analysis could not be completed${detail}. Please try again.`);
 }
 
 async function runObjectPrompt<T>(args: {
@@ -142,15 +149,22 @@ async function runObjectPrompt<T>(args: {
   const model = gateway.chatModel(args.model);
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
+    // streamText reports HTTP failures through onError and then throws a status-less
+    // "no output" error, so keep the real error to map it to a useful message.
+    let streamError: unknown;
     try {
       const result = streamText({
         model,
         output: Output.object({ schema: args.schema }),
         prompt: args.prompt,
         maxOutputTokens: args.maxOutputTokens,
+        onError: ({ error }) => {
+          streamError = error;
+        },
       });
       return args.schema.parse(await result.output);
-    } catch (error) {
+    } catch (thrown) {
+      const error = streamError ?? thrown;
       const status = statusOf(error);
       const retryable = status === 429 || (status !== undefined && status >= 500);
       if (!retryable || attempt === 2) throw safeAiError(error);
